@@ -13,4 +13,4 @@ From the commandline, run the crawler with the following format for a seed URL a
 
    2. Access and download seed url and extract all the hyperreferences found there, creating a first list of urls to work with.
 
-   3. Recursively download HTMLs, each time extracting hyperreferences pointing towards more HTMLs and adding them to the queue as long as they haven't been 'seen' before. A bloom filter is used to check whether a url has been seen. 
+   3. Recursively download HTMLs, each time extracting hyperreferences pointing towards more HTMLs and adding them to the queue as long as they haven't been 'seen' before. A bloom filter is used to check whether a url has been seen. Downloading is done using a threadpool with 20 workers.
