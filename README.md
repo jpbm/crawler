@@ -6,6 +6,8 @@ From the commandline, run the crawler with the following format for a seed URL a
 
     ``$ python crawler.py 'https://www.nytimes.com' 'data/nytimes.json'``
 
+The number of hyperrefs found on the seed URL will be printed. If the number is '1' then the automatically generated regular expression that is supposed to find hyperlinks is not working for the format of the seed url. Right now, this means that the script has to be modified manually so that hyperreferences are found.
+
 # how it works
    1. Creates a regular expression that is used to extract hyperreferences to html files under the seed domain:
 
