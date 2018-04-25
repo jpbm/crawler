@@ -2,6 +2,7 @@ import sys
 import re
 from concurrent import futures
 import argparse
+import json
 
 import requests
 from bloom_filter import BloomFilter
@@ -48,7 +49,7 @@ def process_one(url):
     
     if response.status_code == 200:
         html = response.text
-        item = "{'url': %s, 'html': %s}\n" % (url,html)
+        item = json.dumps({'url':url,'html':html})+"\n"
         urls_found = hyperrefs_re.findall(html)
         for url_found in urls_found:
             if not url_found in urls_seen:
