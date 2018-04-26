@@ -47,7 +47,7 @@ def process_one(url):
     hyperrefs_re [regex]
     """
     global urls_to_do
-    sleep(0.25)    
+    sleep(0.25*next(delay))    
     try:
         urls_seen.add(url)
         response = requests.get(url)
@@ -120,9 +120,12 @@ if __name__ == "__main__":
     parser.add_argument('filename',metavar='d',type=str,help='path and filename')
     
     args = parser.parse_args()
-    MAX_WORKERS = 2
+    MAX_WORKERS = 10
     SEED_URL = args.seed_url
     FILENAME = args.filename
+    
+    from itertools import cycle
+    delay = cycle(range(MAX_WORKERS))
 
     initialize()
     t0 = time()
