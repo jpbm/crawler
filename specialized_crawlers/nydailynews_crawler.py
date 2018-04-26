@@ -13,23 +13,16 @@ urls_to_do = set()
 processed = 0
 offset = 0
 
-hyperrefs_re = re.compile('(?<=href=")[a-zA-Z0-9/_-]*[.]html')
-def get_urls(html):
-    """taylored to chicagotribune"""
-    global hyperrefs_re
-    hrefs = hyperrefs_re.findall(html)
-    return [SEED_URL.strip('/') + href for href in hrefs]
-
 def initialize():
     response = requests.get(SEED_URL)
-    #global hyperrefs_re
-    #hyperrefs_re = re.compile('(?<=href=")%s[A-Za-z0-9_/-]*[.]html(?=")' % SEED_URL)
+    global hyperrefs_re
+    hyperrefs_re = re.compile('(?<=href=")http://www.nydailynews.com[^"]*(?=")')
     #hyperrefs_re = re.compile(SEED_URL+'[a-zA-Z0-9/_-]*[.]html')
     global filename
     filename = filename_gen()
     if response.status_code == 200:
         html = response.text
-        urls = get_urls(html)
+        urls = hyperrefs_re.findall(html)
         print("[initialize] Seeding with %i urls found via %s." % (len(set(urls))+1,SEED_URL))
         urls_to_do.update(urls)
         urls_to_do.update([SEED_URL])
@@ -47,7 +40,6 @@ def process_one(url):
     hyperrefs_re [regex]
     """
     global urls_to_do
-    sleep(0.25)    
     try:
         urls_seen.add(url)
         response = requests.get(url)
@@ -55,7 +47,7 @@ def process_one(url):
         if response.status_code == 200:
             html = response.text
             item = json.dumps({'url':url,'html':html})+"\n"
-            urls_found = get_urls(html)
+            urls_found = hyperrefs_re.findall(html)
             for url_found in urls_found:
                 if not url_found in urls_seen:
                     urls_to_do.update([url_found])
@@ -71,8 +63,8 @@ def process_one(url):
         else:
             print('[process_one] [sleeping] Code: %i [processed %i] %s' % (response.status_code,processed,url))
             global offset
-            offset += 0.25
-            offset = min(60,offset)
+            offset += 0
+            offset = min(5*60,offset)
             sleep(offset + randint(MAX_WORKERS))
             
     except:
@@ -120,7 +112,7 @@ if __name__ == "__main__":
     parser.add_argument('filename',metavar='d',type=str,help='path and filename')
     
     args = parser.parse_args()
-    MAX_WORKERS = 2
+    MAX_WORKERS = 50
     SEED_URL = args.seed_url
     FILENAME = args.filename
 
