@@ -16,3 +16,18 @@ The number of hyperrefs found on the seed URL will be printed. If the number is 
    2. Access and download seed url and extract all the hyperreferences found there, creating a first list of urls to work with.
 
    3. Recursively download HTMLs, each time extracting hyperreferences pointing towards more HTMLs and adding them to the queue as long as they haven't been 'seen' before. A bloom filter is used to check whether a url has been seen. Downloading is done using a threadpool with 20 workers.
+
+
+# specialized crawlers
+``crawler.py`` is a template that happens to work for the New York Times. Other outlets will require some customization. Most commonly, the method for extracting hyperreferences needs to be modified. Sometimes the crawler has to be deliberately slowed down to avoid rate limits (c.f. ``chicagotribune_crawler.py``)
+
+# scraping works well for...
+    - New York Times
+    - New York Daily News
+    - New York Post
+
+# scraping doesn't work so well for...
+    - Wall Street Journal (stalls)
+    - Washington Post (stalls)
+    - Chicago Tribune (rate limited)
+
