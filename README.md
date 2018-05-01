@@ -33,3 +33,6 @@ The number of hyperrefs found on the seed URL will be printed. If the number is 
     - Huffington Post (1600+ documents, appears to scrape correctly, then stalls)
     - Slate (crawler converges with only 516 documents)
     - The Onion (crawler converges with 27 documents)
+
+# Preprocessing
+Extraction happens for the purpose of a natural language classification task. The pipeline requires as input tuples consisting of a text fragment, along with a label. Since finding a general solution is difficult and the number of publications is small, specialized scripts for the extraction of data are contained in a seperate repo -- ``specialized_preprocessors``.
