@@ -13,16 +13,27 @@ urls_to_do = set()
 processed = 0
 offset = 0
 
+
+def get_urls(html):
+    global hyperrefs_re
+    hyperrefs_re = re.compile('(?<=href=")https://nypost[.]com[A-Za-z0-9_/-]*(?=")')
+    urls = []
+    for url in hyperrefs_re.findall(html):
+        url = url.strip('/')
+        if 'feed' in url:
+            url = url.replace('feed','')
+        urls += [url]
+    return urls
+
 def initialize():
     response = requests.get(SEED_URL)
     global hyperrefs_re
-    hyperrefs_re = re.compile('(?<=href=")https://nypost[.]com[A-Za-z0-9_/-]*(?=")')
     #hyperrefs_re = re.compile(SEED_URL+'[a-zA-Z0-9/_-]*[.]html')
     global filename
     filename = filename_gen()
     if response.status_code == 200:
         html = response.text
-        urls = hyperrefs_re.findall(html)
+        urls = get_urls(html)
         print("[initialize] Seeding with %i urls found via %s." % (len(set(urls))+1,SEED_URL))
         urls_to_do.update(urls)
         urls_to_do.update([SEED_URL])
@@ -47,7 +58,7 @@ def process_one(url):
         if response.status_code == 200:
             html = response.text
             item = json.dumps({'url':url,'html':html})+"\n"
-            urls_found = hyperrefs_re.findall(html)
+            urls_found = get_urls(html)
             for url_found in urls_found:
                 if not url_found in urls_seen:
                     urls_to_do.update([url_found])
