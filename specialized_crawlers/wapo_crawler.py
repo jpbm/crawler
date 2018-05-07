@@ -85,6 +85,8 @@ def process_many():
     """
     print('[process_many] Writing to %s' % FILENAME, end = '\r')
     while len(urls_to_do) != 0:
+        global processed
+        processed_before = processed
         global av_time
         av_time = processed/(time()-t0)
         global file
@@ -93,8 +95,12 @@ def process_many():
         print('\n[process_many] Starting next batch. (Avg. freq.: %1.3fHz)' % av_time)
         workers = min(MAX_WORKERS,len(urls_to_do))
         with futures.ThreadPoolExecutor(workers) as executor:
-            list(executor.map(process_one,list(urls_to_do)[:1000]))
+            list(executor.map(process_one,list(urls_to_do)[:3000]))
         file.close()
+        global processed
+        if processed_before == processed:
+            print("Aborting crawl because no new files were added.")
+            break
     print("Crawl complete. (you are unlikely to ever see this message...")
 
 def filename_gen():
