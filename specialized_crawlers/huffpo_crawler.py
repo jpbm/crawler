@@ -1,3 +1,4 @@
+from bs4 import BeautifulSoup
 import re
 from concurrent import futures
 import argparse
@@ -7,38 +8,38 @@ from numpy.random import randint
 
 import requests
 from bloom_filter import BloomFilter
+import urllib3
 
+urllib3.disable_warnings()
 urls_seen = BloomFilter(max_elements=500000, error_rate=0.1)
 urls_to_do = set()
 processed = 0
 offset = 0
+http = urllib3.PoolManager()
 
-hyperrefs_re = re.compile('(?<=href=")[^"]*(?=">)')
 def get_urls(html):
     """taylored to huffpo"""
-    global hyperrefs_re
-    hrefs = hyperrefs_re.findall(html)
-    #print(hrefs)
-    full_hrefs = [href for href in hrefs if 'http' in href]
-    partial_hrefs = [SEED_URL.strip('/') + href for href in hrefs if 'http' not in href]
-    return full_hrefs + partial_hrefs
+    hrefs = [item['href'] for item in BeautifulSoup(html,'html.parser').findAll('a',href=True)]
+    full_hrefs = [href for href in hrefs if '.com' in href and 'huff' in href]
+    partial_hrefs = ['https://www.huffingtonpost.com' + href for href in hrefs if len(href)>=2 and href[0] == '/' and href[1] != '/']
+    return [href.split('?')[0].strip('/').replace('/feed','') for href in full_hrefs + partial_hrefs if 'po.com' in href or 'post.com' in href and '.jpg' not in href]
 
 
 def initialize():
-    response = requests.get(SEED_URL)
+    response = http.request('GET',SEED_URL) #requests.get(SEED_URL,headers= {'Accept-Encoding':'identity'})
     global hyperrefs_re
     #hyperrefs_re = re.compile('(?<=href=")%s[A-Za-z0-9_/-]*[.]html(?=")' % SEED_URL)
     #hyperrefs_re = re.compile(SEED_URL+'[a-zA-Z0-9/_-]*[.]html')
     global filename
     filename = filename_gen()
-    if response.status_code == 200:
-        html = response.content.decode('utf-8') # huffpo modification
+    if response.status == 200:
+        html = response.data.decode('utf-8') # huffpo modification
         urls = get_urls(html)
         print("[initialize] Seeding with %i urls found via %s." % (len(set(urls))+1,SEED_URL))
         urls_to_do.update(urls)
         urls_to_do.update([SEED_URL])
     else:
-        print("[initialize] Failed. Code: %i %s" % (response.status_code,SEED_URL))
+        print("[initialize] Failed. Code: %i %s" % (response.status,SEED_URL))
         
 
 def process_one(url):
@@ -53,10 +54,10 @@ def process_one(url):
     global urls_to_do
     try:
         urls_seen.add(url)
-        response = requests.get(url)
+        response = http.request('GET',url) #requests.get(url, headers={'Accept-Encoding':'identity'})
 
-        if response.status_code == 200:
-            html = response.text
+        if response.status == 200:
+            html = response.data.decode('utf-8')
             item = json.dumps({'url':url,'html':html})+"\n"
             urls_found = get_urls(html)
             for url_found in urls_found:
@@ -67,19 +68,23 @@ def process_one(url):
             global processed
             processed += 1
             urls_to_do.remove(url)
-            print('[process_one] %i downloaded %i to go.' % (processed,len(urls_to_do)),end = '\r')
-        elif response.status_code != 429 and response.status_code != 503:
+            if processed % 10 == 0:
+                print('[process_one] %i downloaded %i to go. %s' % (processed,len(urls_to_do),url),end = '\n')
+        elif response.status != 429 and response.status != 503:
             urls_to_do.remove(url)
-            print('[process_one] [removed] Code: %i [processed %i] %s' % (response.status_code,processed,url))
+            print('[process_one] [removed] Code: %i [processed %i] %s' % (response.status,processed,url))
         else:
-            print('[process_one] [sleeping] Code: %i [processed %i] %s' % (response.status_code,processed,url))
+            print('[process_one] [sleeping] Code: %i [processed %i] %s' % (response.status,processed,url))
             global offset
             offset += 0
             offset = min(5*60,offset)
             sleep(offset + randint(MAX_WORKERS))
             
     except:
-        print('[process_one] [exception] %s' % url)
+        try:
+            print('[process_one] [exception] Code %i %s' % (response.status,url))
+        except:
+            print('[process_one] [response exception] %s' % url)
 
 
 def process_many():
@@ -104,7 +109,7 @@ def process_many():
         print('\n[process_many] Starting next batch. (Avg. freq.: %1.3fHz)' % av_time)
         workers = min(MAX_WORKERS,len(urls_to_do))
         with futures.ThreadPoolExecutor(workers) as executor:
-            list(executor.map(process_one,list(urls_to_do)[:1000]))
+            list(executor.map(process_one,list(urls_to_do)[:5000]))
         file.close()
     print("Crawl complete. (you are unlikely to ever see this message...")
 
@@ -118,14 +123,16 @@ def filename_gen():
         i += 1
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Crawl some website.')
-    parser.add_argument('seed_url',metavar='u',type=str,help='seed url for the crawler')
-    parser.add_argument('filename',metavar='d',type=str,help='path and filename')
+    #parser = argparse.ArgumentParser(description='Crawl some website.')
+    #parser.add_argument('seed_url',metavar='u',type=str,help='seed url for the crawler')
+    #parser.add_argument('filename',metavar='d',type=str,help='path and filename')
     
-    args = parser.parse_args()
+    #args = parser.parse_args()
     MAX_WORKERS = 50
-    SEED_URL = args.seed_url
-    FILENAME = args.filename
+    #SEED_URL = args.seed_url
+    #FILENAME = args.filename
+    FILENAME = '/datapool/news_articles/raw_data/huffpo/huffpo.json'
+    SEED_URL = 'https://www.huffingtonpost.com'
 
     initialize()
     t0 = time()

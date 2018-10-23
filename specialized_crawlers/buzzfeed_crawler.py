@@ -1,51 +1,39 @@
+from bs4 import BeautifulSoup
 import re
-import os
 from concurrent import futures
 import argparse
 import json
-import urllib3
 from time import sleep, time
 from numpy.random import randint
-from bloom_filter import BloomFilter
 
+import requests
+from bloom_filter import BloomFilter
+import urllib3
+
+urllib3.disable_warnings()
 urls_seen = BloomFilter(max_elements=500000, error_rate=0.1)
 urls_to_do = set()
 processed = 0
 offset = 0
-urllib3.disable_warnings()
-
-from bs4 import BeautifulSoup
-
-def allowed_content(href):
-    res = True
-    for item in 'mailto,.jpg,.gif,.xml,.png,.mp3,.pdf,.mp4'.split(','):
-        if item in href:
-            res = False
-            break
-    return res
+http = urllib3.PoolManager()
 
 def get_urls(html):
-    soup = BeautifulSoup(html,'html.parser')
-    hrefs = [item['href'] for item in  soup.findAll('a',href=True)] 
-    partial_hrefs = [
-            SEED_URL.strip('/') + '/' + href.strip('/') for href in hrefs if SEED_URL not in href and '//' not in href
-            ]+[
-            href.replace('https:','').replace('http:','').replace('//','') for href in hrefs if '//' in href
-            ]
-    return [href.split('?')[0].strip('/').replace('/feed','') for href in partial_hrefs if FN in href and allowed_content(href)] #and 'mailto' not in href]
+    """taylored to buzzfeed"""
+    hrefs = [item['href'] for item in BeautifulSoup(html,'html.parser').findAll('a',href=True)]
+    full_hrefs = [href for href in hrefs if '.com' in href and 'buzz' in href]
+    partial_hrefs = ['https://www.buzzfeed.com' + href for href in hrefs if len(href)>=2 and href[0] == '/' and href[1] != '/']
+    return [href.split('?')[0].strip('/').replace('/feed','') for href in full_hrefs + partial_hrefs if '.jpg' not in href]
 
 
 def initialize():
-    global http
-    http = urllib3.PoolManager(num_pools=50,block=True,timeout=3)
-    response = http.request('GET',SEED_URL)
-    #global hyperrefs_re
+    response = http.request('GET',SEED_URL) #requests.get(SEED_URL,headers= {'Accept-Encoding':'identity'})
+    global hyperrefs_re
     #hyperrefs_re = re.compile('(?<=href=")%s[A-Za-z0-9_/-]*[.]html(?=")' % SEED_URL)
     #hyperrefs_re = re.compile(SEED_URL+'[a-zA-Z0-9/_-]*[.]html')
     global filename
     filename = filename_gen()
     if response.status == 200:
-        html = response.data.decode('utf-8')
+        html = response.data.decode('utf-8') # huffpo modification
         urls = get_urls(html)
         print("[initialize] Seeding with %i urls found via %s." % (len(set(urls))+1,SEED_URL))
         urls_to_do.update(urls)
@@ -66,7 +54,8 @@ def process_one(url):
     global urls_to_do
     try:
         urls_seen.add(url)
-        response = http.request('GET',url)
+        response = http.request('GET',url) #requests.get(url, headers={'Accept-Encoding':'identity'})
+
         if response.status == 200:
             html = response.data.decode('utf-8')
             item = json.dumps({'url':url,'html':html})+"\n"
@@ -83,13 +72,19 @@ def process_one(url):
                 print('[process_one] %i downloaded %i to go. %s' % (processed,len(urls_to_do),url),end = '\n')
         elif response.status != 429 and response.status != 503:
             urls_to_do.remove(url)
-            #print('[process_one] [removed] Code: %i %s' % (response.status,url))
+            print('[process_one] [removed] Code: %i [processed %i] %s' % (response.status,processed,url))
         else:
-            #print('[process_one] [sleeping] Code: %i [processed %i] %s' % (response.status,processed,url))
-            sleep(randint(10))
+            print('[process_one] [sleeping] Code: %i [processed %i] %s' % (response.status,processed,url))
+            global offset
+            offset += 0
+            offset = min(5*60,offset)
+            sleep(offset + randint(MAX_WORKERS))
             
     except:
-        print('[process_one] [exception] %s' % url)
+        try:
+            print('[process_one] [exception] Code %i %s' % (response.status,url))
+        except:
+            print('[process_one] [response exception] %s' % url)
 
 
 def process_many():
@@ -114,7 +109,7 @@ def process_many():
         print('\n[process_many] Starting next batch. (Avg. freq.: %1.3fHz)' % av_time)
         workers = min(MAX_WORKERS,len(urls_to_do))
         with futures.ThreadPoolExecutor(workers) as executor:
-            list(executor.map(process_one,list(urls_to_do)[:1000]))
+            list(executor.map(process_one,list(urls_to_do)[:5000]))
         file.close()
     print("Crawl complete. (you are unlikely to ever see this message...")
 
@@ -128,22 +123,16 @@ def filename_gen():
         i += 1
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Crawl some website.')
-    parser.add_argument('seed_url',metavar='u',type=str,help='seed url for the crawler')
+    #parser = argparse.ArgumentParser(description='Crawl some website.')
+    #parser.add_argument('seed_url',metavar='u',type=str,help='seed url for the crawler')
     #parser.add_argument('filename',metavar='d',type=str,help='path and filename')
     
-    args = parser.parse_args()
+    #args = parser.parse_args()
     MAX_WORKERS = 50
-    SEED_URL = args.seed_url
-    FN = SEED_URL.split('.')[1] #SEED_URL.replace('www.','').replace(".com",'').replace('https://','').replace('http://','')  #args.filename
-    FILENAME = '/datapool/news_articles/raw_data/'+FN+'/'+FN+'.json'
-    print(SEED_URL)
-    print(FILENAME)
-    
-    try:
-        os.mkdir(FILENAME.replace('/'+FN+'.json',''))
-    except:
-        pass
+    #SEED_URL = args.seed_url
+    #FILENAME = args.filename
+    FILENAME = '/datapool/news_articles/raw_data/buzzfeed/buzzfeed.json'
+    SEED_URL = 'https://www.buzzfeed.com'
 
     initialize()
     t0 = time()

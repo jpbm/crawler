@@ -56,7 +56,8 @@ def process_one(url):
             global processed
             processed += 1
             urls_to_do.remove(url)
-            print('[process_one] %i downloaded %i to go.' % (processed,len(urls_to_do)),end = '\r')
+            if processed % 100 == 0:
+                print('[process_one] %i downloaded %i to go.' % (processed,len(urls_to_do)),end = '\r')
         elif response.status_code != 429 and response.status_code != 503:
             urls_to_do.remove(url)
             print('[process_one] [removed] Code: %i %s' % (response.status_code,url))
@@ -93,14 +94,12 @@ def process_many():
         global filename
         file = open(next(filename),'w')
         print('\n[process_many] Starting next batch. (Avg. freq.: %1.3fHz)' % av_time)
-        workers = min(MAX_WORKERS,len(urls_to_do))
-        with futures.ThreadPoolExecutor(workers) as executor:
-            list(executor.map(process_one,list(urls_to_do)[:3000]))
+        while processed_before == processed:
+            workers = min(MAX_WORKERS,len(urls_to_do))
+            with futures.ThreadPoolExecutor(workers) as executor:
+                list(executor.map(process_one,list(urls_to_do)[:3000]))
+            print('Executing pool...')
         file.close()
-        global processed
-        if processed_before == processed:
-            print("Aborting crawl because no new files were added.")
-            break
     print("Crawl complete. (you are unlikely to ever see this message...")
 
 def filename_gen():
@@ -113,14 +112,18 @@ def filename_gen():
         i += 1
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Crawl some website.')
-    parser.add_argument('seed_url',metavar='u',type=str,help='seed url for the crawler')
-    parser.add_argument('filename',metavar='d',type=str,help='path and filename')
+    processed = 0
     
-    args = parser.parse_args()
+    #parser = argparse.ArgumentParser(description='Crawl some website.')
+    #parser.add_argument('seed_url',metavar='u',type=str,help='seed url for the crawler')
+    #parser.add_argument('filename',metavar='d',type=str,help='path and filename')
+    
+    #args = parser.parse_args()
     MAX_WORKERS = 50
-    SEED_URL = args.seed_url
-    FILENAME = args.filename
+    #SEED_URL = args.seed_url
+    #FILENAME = args.filename
+    SEED_URL = "https://www.washingtonpost.com"
+    FILENAME = "/datapool/news_articles/raw_data/wapo/wapo.json"
 
     initialize()
     t0 = time()
