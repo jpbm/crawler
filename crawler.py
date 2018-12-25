@@ -130,13 +130,13 @@ def filename_gen():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Crawl some website.')
     parser.add_argument('seed_url',metavar='u',type=str,help='seed url for the crawler')
-    #parser.add_argument('filename',metavar='d',type=str,help='path and filename')
+    parser.add_argument('filename',metavar='d',type=str,help='path and filename')
     
     args = parser.parse_args()
     MAX_WORKERS = 50
     SEED_URL = args.seed_url
     FN = SEED_URL.split('.')[1] #SEED_URL.replace('www.','').replace(".com",'').replace('https://','').replace('http://','')  #args.filename
-    FILENAME = '/datapool/news_articles/raw_data/'+FN+'/'+FN+'.json'
+    FILENAME = args.filename #'/datapool/news_articles/raw_data/'+FN+'/'+FN+'.json'
     print(SEED_URL)
     print(FILENAME)
     
